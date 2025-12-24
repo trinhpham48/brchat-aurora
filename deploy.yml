@@ -28,10 +28,10 @@ Parameters:
     Default: "{}"
   RepoUrl:
     Type: String
-    Default: "https://github.com/aws-samples/bedrock-chat.git"
+    Default: "https://github.com/trinhpham48/brchat-aurora.git"
   Version:
     Type: String
-    Default: "v3"
+    Default: "main"
 
 Resources:
   ProjectRole:
@@ -170,7 +170,10 @@ Resources:
                   "cd cdk",
                   "cat cdk.json",
                   "npm ci",
-                  "npx cdk bootstrap",
+                  "echo 'Setting up CDK bootstrap environment...'",
+                  "export CDK_NEW_BOOTSTRAP=1",
+                  "npx cdk bootstrap aws://$(aws sts get-caller-identity --query Account --output text)/$AWS_REGION --force --cloudformation-execution-policies arn:aws:iam::aws:policy/AdministratorAccess --toolkit-stack-name CDKToolkit || true",
+                  "echo 'Deploying CDK stacks...'",
                   "npx cdk deploy --require-approval never --all"
                 ]
               }
