@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import logging
 import os
 from typing import (
@@ -1194,3 +1195,36 @@ def get_model_id(
     # 3. Use standalone model (no global or cross-region inference)
     logger.info(f"Using local model ID: {base_model_id} for model '{model}'")
     return base_model_id
+
+
+def get_embedding(text: str) -> list[float]:
+    """Generate embedding vector using Amazon Titan Embeddings V1.
+    
+    Args:
+        text: Input text to embed (max 8000 chars recommended)
+        
+    Returns:
+        List of 1536 floats representing the embedding vector
+    """
+    client = get_bedrock_runtime_client(region=BEDROCK_REGION)
+    
+    # Titan Embeddings V1 model ID
+    model_id = "amazon.titan-embed-text-v1"
+    
+    try:
+        response = client.invoke_model(
+            modelId=model_id,
+            body=json.dumps({"inputText": text}),
+            contentType="application/json",
+            accept="application/json",
+        )
+        
+        response_body = json.loads(response["body"].read())
+        embedding = response_body["embedding"]
+        
+        logger.debug(f"Generated embedding with {len(embedding)} dimensions")
+        return embedding
+        
+    except Exception as e:
+        logger.error(f"Failed to generate embedding: {e}")
+        raise
