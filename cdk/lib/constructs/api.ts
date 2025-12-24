@@ -78,6 +78,12 @@ export class Api extends Construct {
         "service-role/AWSLambdaBasicExecutionRole"
       )
     );
+    // Add VPC access policy for Lambda to connect to Aurora
+    handlerRole.addManagedPolicy(
+      iam.ManagedPolicy.fromAwsManagedPolicyName(
+        "service-role/AWSLambdaVPCAccessExecutionRole"
+      )
+    );
     handlerRole.addToPolicy(
       // Assume the table access role for row-level access control.
       new iam.PolicyStatement({
