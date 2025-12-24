@@ -103,6 +103,25 @@ export class Aurora extends Construct {
     const cfnCluster = this.cluster.node.defaultChild as rds.CfnDBCluster;
     cfnCluster.enableHttpEndpoint = true;
 
+    // Wait for cluster to be available before initializing
+    const waitForCluster = new AwsCustomResource(this, "WaitForCluster", {
+      onCreate: {
+        service: "RDS",
+        action: "describeDBClusters",
+        parameters: {
+          DBClusterIdentifier: this.cluster.clusterIdentifier,
+        },
+        physicalResourceId: PhysicalResourceId.of("WaitForCluster"),
+      },
+      policy: AwsCustomResourcePolicy.fromStatements([
+        new iam.PolicyStatement({
+          actions: ["rds:DescribeDBClusters"],
+          resources: ["*"],
+        }),
+      ]),
+    });
+    waitForCluster.node.addDependency(this.cluster);
+
     // Custom resource to initialize database with pgvector extension
     const initDbFunction = new AwsCustomResource(this, "InitDatabase", {
       onCreate: {
@@ -193,6 +212,9 @@ export class Aurora extends Construct {
         }),
       ]),
     });
+
+    // Wait for cluster to be available before running init
+    initDbFunction.node.addDependency(waitForCluster);
 
     // Outputs
     new CfnOutput(this, "ClusterEndpoint", {
