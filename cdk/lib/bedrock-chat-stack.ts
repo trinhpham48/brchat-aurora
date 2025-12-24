@@ -27,6 +27,7 @@ import * as path from "path";
 import { BedrockCustomBotCodebuild } from "./constructs/bedrock-custom-bot-codebuild";
 import { BedrockSharedKnowledgeBasesCodebuild } from "./constructs/bedrock-shared-knowledge-bases-codebuild";
 import { BotStore, Language } from "./constructs/bot-store";
+import { Aurora } from "./constructs/aurora";
 import { Duration } from "aws-cdk-lib";
 
 export interface BedrockChatStackProps extends StackProps {
@@ -206,17 +207,23 @@ export class BedrockChatStack extends cdk.Stack {
       pointInTimeRecovery: true,
     });
 
-    // Custom Bot Store
+    // Aurora Vector Database for Bot/Conversation Search (replaces OpenSearch)
+    const aurora = new Aurora(this, "Aurora", {
+      enableReplicas: props.enableRagReplicas,
+      envPrefix: props.envPrefix,
+    });
+
+    // Custom Bot Store - DISABLED, using Aurora instead
     let botStore = undefined;
-    if (props.enableBotStore) {
-      botStore = new BotStore(this, "BotStore", {
-        envPrefix: props.envPrefix,
-        botTable: database.botTable,
-        conversationTable: database.conversationTable,
-        language: props.botStoreLanguage,
-        enableBotStoreReplicas: props.enableBotStoreReplicas,
-      });
-    }
+    // if (props.enableBotStore) {
+    //   botStore = new BotStore(this, "BotStore", {
+    //     envPrefix: props.envPrefix,
+    //     botTable: database.botTable,
+    //     conversationTable: database.conversationTable,
+    //     language: props.botStoreLanguage,
+    //     enableBotStoreReplicas: props.enableBotStoreReplicas,
+    //   });
+    // }
 
     const usageAnalysis = new UsageAnalysis(this, "UsageAnalysis", {
       envPrefix: props.envPrefix,
@@ -251,21 +258,28 @@ export class BedrockChatStack extends cdk.Stack {
       enableBedrockCrossRegionInference:
         props.enableBedrockCrossRegionInference,
       enableLambdaSnapStart: props.enableLambdaSnapStart,
-      openSearchEndpoint: botStore?.openSearchEndpoint,
+      // Aurora replaces OpenSearch
+      auroraCluster: aurora.cluster,
+      auroraSecret: aurora.secret,
+      auroraVpc: aurora.vpc,
       globalAvailableModels: props.globalAvailableModels,
       defaultModel: props.defaultModel,
       titleModel: props.titleModel,
       logoPath: props.logoPath,
     });
     props.documentBucket.grantReadWrite(backendApi.handler);
-    // Add permissions to API handler for BotStore
-    botStore?.addDataAccessPolicy(
-      props.envPrefix,
-      "DAPolicyApiHandler",
-      backendApi.handler.role!,
-      ["aoss:DescribeCollectionItems"],
-      ["aoss:DescribeIndex", "aoss:ReadDocument"]
+    
+    // Grant Aurora permissions to Lambda
+    aurora.cluster.grantDataApiAccess(backendApi.handler);
+    aurora.secret.grantRead(backendApi.handler);
+    aurora.connections.allowFrom(
+      backendApi.handler,
+      ec2.Port.tcp(5432),
+      "Allow Lambda to Aurora"
     );
+    
+    // REMOVED: OpenSearch Bot Store permissions
+    // botStore?.addDataAccessPolicy(...)  
 
     // Add data access policy for developers
     // Get IAM user/role ARN from environment variables

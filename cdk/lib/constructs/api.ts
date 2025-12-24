@@ -27,6 +27,9 @@ import { UsageAnalysis } from "./usage-analysis";
 import { excludeDockerImage } from "../constants/docker";
 import { PythonFunction } from "@aws-cdk/aws-lambda-python-alpha";
 import { Database } from "./database";
+import * as rds from "aws-cdk-lib/aws-rds";
+import * as secretsmanager from "aws-cdk-lib/aws-secretsmanager";
+import * as ec2 from "aws-cdk-lib/aws-ec2";
 
 export interface ApiProps {
   readonly database: Database;
@@ -45,7 +48,10 @@ export interface ApiProps {
   readonly enableBedrockGlobalInference: boolean;
   readonly enableBedrockCrossRegionInference: boolean;
   readonly enableLambdaSnapStart: boolean;
-  readonly openSearchEndpoint?: string;
+  // Aurora replaces OpenSearch
+  readonly auroraCluster: rds.DatabaseCluster;
+  readonly auroraSecret: secretsmanager.ISecret;
+  readonly auroraVpc: ec2.IVpc;
   readonly globalAvailableModels?: string[];
   readonly defaultModel?: string;
   readonly titleModel?: string;
@@ -85,6 +91,7 @@ export class Api extends Construct {
         resources: ["*"],
       })
     );
+    // REMOVED: OpenSearch permissions - using Aurora instead
     handlerRole.addToPolicy(
       new iam.PolicyStatement({
         effect: iam.Effect.ALLOW,
@@ -186,31 +193,7 @@ export class Api extends Construct {
         resources: [props.auth.userPool.userPoolArn],
       })
     );
-    handlerRole.addToPolicy(
-      new iam.PolicyStatement({
-        effect: iam.Effect.ALLOW,
-        actions: [
-          "aoss:APIAccessAll",
-          "aoss:DescribeCollection",
-          "aoss:GetCollection",
-          "aoss:SearchCollections",
-          "aoss:BatchGetCollection",
-          "aoss:ListCollections",
-        ],
-        resources: ["*"],
-      })
-    );
-    handlerRole.addToPolicy(
-      new iam.PolicyStatement({
-        effect: iam.Effect.ALLOW,
-        actions: ["aoss:DescribeIndex", "aoss:ReadDocument"],
-        resources: [
-          `arn:aws:aoss:${Stack.of(this).region}:${
-            Stack.of(this).account
-          }:collection/*`,
-        ],
-      })
-    );
+    // REMOVED: All OpenSearch permissions - using Aurora PostgreSQL instead
     // For Firecrawl api key
     handlerRole.addToPolicy(
       new iam.PolicyStatement({
@@ -237,6 +220,10 @@ export class Api extends Construct {
     props.usageAnalysis?.resultOutputBucket.grantReadWrite(handlerRole);
     props.usageAnalysis?.ddbBucket.grantRead(handlerRole);
     props.largeMessageBucket.grantReadWrite(handlerRole);
+    
+    // Grant Aurora permissions
+    props.auroraCluster.grantDataApiAccess(handlerRole);
+    props.auroraSecret.grantRead(handlerRole);
 
     const handler = new PythonFunction(this, "HandlerV2", {
       entry: path.join(__dirname, "../../../backend"),
@@ -249,6 +236,10 @@ export class Api extends Construct {
       architecture: Architecture.X86_64,
       memorySize: 1024,
       timeout: Duration.minutes(15),
+      vpc: props.auroraVpc,
+      vpcSubnets: {
+        subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS,
+      },
       environment: {
         CONVERSATION_TABLE_NAME: database.conversationTable.tableName,
         BOT_TABLE_NAME: database.botTable.tableName,
@@ -280,7 +271,11 @@ export class Api extends Construct {
           : "[]",
         DEFAULT_MODEL: props.defaultModel || "",
         TITLE_MODEL: props.titleModel || "",
-        OPENSEARCH_DOMAIN_ENDPOINT: props.openSearchEndpoint || "",
+        // Aurora replaces OpenSearch
+        AURORA_CLUSTER_ARN: props.auroraCluster.clusterArn,
+        AURORA_SECRET_ARN: props.auroraSecret.secretArn,
+        AURORA_DATABASE_NAME: "bedrockchat",
+        USE_AURORA_SEARCH: "true",
         LOGO_PATH: props.logoPath || "",
         USE_STRANDS: "true",
         AWS_LAMBDA_EXEC_WRAPPER: "/opt/bootstrap",
