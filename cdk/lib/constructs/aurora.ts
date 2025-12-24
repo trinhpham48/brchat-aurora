@@ -61,7 +61,7 @@ export class Aurora extends Construct {
     // Aurora Serverless v2 cluster
     this.cluster = new rds.DatabaseCluster(this, "Cluster", {
       engine: rds.DatabaseClusterEngine.auroraPostgres({
-        version: rds.AuroraPostgresEngineVersion.VER_15_4,
+        version: rds.AuroraPostgresEngineVersion.VER_16_1,
       }),
       writer: rds.ClusterInstance.serverlessV2("Writer", {
         enablePerformanceInsights: true,
