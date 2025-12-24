@@ -14,6 +14,7 @@ import { Database } from "./constructs/database";
 import { Frontend } from "./constructs/frontend";
 import { WebSocket } from "./constructs/websocket";
 import * as cdk from "aws-cdk-lib";
+import * as ec2 from "aws-cdk-lib/aws-ec2";
 import { Embedding } from "./constructs/embedding";
 import { UsageAnalysis } from "./constructs/usage-analysis";
 import { TIdentityProvider, identityProvider } from "./utils/identity-provider";
@@ -279,32 +280,7 @@ export class BedrockChatStack extends cdk.Stack {
     );
     
     // REMOVED: OpenSearch Bot Store permissions
-    // botStore?.addDataAccessPolicy(...)  
-
-    // Add data access policy for developers
-    // Get IAM user/role ARN from environment variables
-    if (props.devAccessIamRoleArn) {
-      // Access to BotStore
-      botStore?.addDataAccessPolicy(
-        props.envPrefix,
-        "DAPolicyDevAccess",
-        iam.Role.fromRoleArn(this, "DevAccessIamRoleArn", props.devAccessIamRoleArn),
-        [
-          "aoss:DescribeCollectionItems",
-          "aoss:CreateCollectionItems",
-          "aoss:DeleteCollectionItems",
-          "aoss:UpdateCollectionItems"
-        ],
-        [
-          "aoss:DescribeIndex",
-          "aoss:ReadDocument",
-          "aoss:WriteDocument",
-          "aoss:CreateIndex",
-          "aoss:DeleteIndex",
-          "aoss:UpdateIndex"
-        ]
-      );
-    }
+    // No longer needed with Aurora backend
 
     // For streaming response
     const websocket = new WebSocket(this, "WebSocket", {
