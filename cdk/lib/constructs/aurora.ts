@@ -1,11 +1,13 @@
 import { Construct } from "constructs";
-import { CfnOutput, Duration, RemovalPolicy } from "aws-cdk-lib";
+import { CfnOutput, Duration, RemovalPolicy, CustomResource } from "aws-cdk-lib";
 import * as rds from "aws-cdk-lib/aws-rds";
 import * as ec2 from "aws-cdk-lib/aws-ec2";
 import * as secretsmanager from "aws-cdk-lib/aws-secretsmanager";
 import * as logs from "aws-cdk-lib/aws-logs";
-import { AwsCustomResource, AwsCustomResourcePolicy, PhysicalResourceId } from "aws-cdk-lib/custom-resources";
+import * as lambda from "aws-cdk-lib/aws-lambda";
+import * as cr from "aws-cdk-lib/custom-resources";
 import * as iam from "aws-cdk-lib/aws-iam";
+import * as path from "path";
 
 export interface AuroraProps {
   readonly vpc?: ec2.IVpc;
@@ -103,118 +105,46 @@ export class Aurora extends Construct {
     const cfnCluster = this.cluster.node.defaultChild as rds.CfnDBCluster;
     cfnCluster.enableHttpEndpoint = true;
 
-    // Wait for cluster to be available before initializing
-    const waitForCluster = new AwsCustomResource(this, "WaitForCluster", {
-      onCreate: {
-        service: "RDS",
-        action: "describeDBClusters",
-        parameters: {
-          DBClusterIdentifier: this.cluster.clusterIdentifier,
-        },
-        physicalResourceId: PhysicalResourceId.of("WaitForCluster"),
+    // Lambda function to initialize database with multiple SQL statements
+    const initLambda = new lambda.Function(this, "InitFunction", {
+      runtime: lambda.Runtime.PYTHON_3_13,
+      handler: "index.handler",
+      code: lambda.Code.fromAsset(path.join(__dirname, "../../lambda/aurora-init")),
+      timeout: Duration.minutes(5),
+      environment: {
+        CLUSTER_ARN: this.cluster.clusterArn,
+        SECRET_ARN: this.secret.secretArn,
+        DATABASE_NAME: this.databaseName,
       },
-      policy: AwsCustomResourcePolicy.fromStatements([
-        new iam.PolicyStatement({
-          actions: ["rds:DescribeDBClusters"],
-          resources: ["*"],
-        }),
-      ]),
-    });
-    waitForCluster.node.addDependency(this.cluster);
-
-    // Custom resource to initialize database with pgvector extension
-    const initDbFunction = new AwsCustomResource(this, "InitDatabase", {
-      onCreate: {
-        service: "RDSDataService",
-        action: "executeStatement",
-        parameters: {
-          resourceArn: this.cluster.clusterArn,
-          secretArn: this.secret.secretArn,
-          database: this.databaseName,
-          sql: `
-            -- Enable required extensions
-            CREATE EXTENSION IF NOT EXISTS vector;
-            CREATE EXTENSION IF NOT EXISTS pg_trgm;
-            CREATE EXTENSION IF NOT EXISTS btree_gin;
-            
-            -- Create bot_vectors table for bot search
-            CREATE TABLE IF NOT EXISTS bot_vectors (
-              bot_id VARCHAR(255) PRIMARY KEY,
-              title TEXT NOT NULL,
-              description TEXT,
-              instruction TEXT,
-              owner_user_id VARCHAR(255),
-              embedding vector(1024),
-              create_time BIGINT,
-              last_used_time BIGINT,
-              sync_status VARCHAR(50) DEFAULT 'SUCCEEDED',
-              shared_scope VARCHAR(50) DEFAULT 'PRIVATE',
-              is_pinned BOOLEAN DEFAULT FALSE,
-              allowed_users TEXT[],
-              search_vector tsvector GENERATED ALWAYS AS (
-                setweight(to_tsvector('english', coalesce(title, '')), 'A') ||
-                setweight(to_tsvector('english', coalesce(description, '')), 'B') ||
-                setweight(to_tsvector('english', coalesce(instruction, '')), 'C')
-              ) STORED,
-              created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-              updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            );
-            
-            -- Indexes for bot search
-            CREATE INDEX IF NOT EXISTS bot_vectors_embedding_idx 
-              ON bot_vectors USING ivfflat (embedding vector_cosine_ops) WITH (lists = 100);
-            CREATE INDEX IF NOT EXISTS bot_vectors_search_idx 
-              ON bot_vectors USING GIN(search_vector);
-            CREATE INDEX IF NOT EXISTS bot_vectors_title_trgm_idx 
-              ON bot_vectors USING GIN(title gin_trgm_ops);
-            CREATE INDEX IF NOT EXISTS bot_vectors_owner_idx 
-              ON bot_vectors(owner_user_id);
-            CREATE INDEX IF NOT EXISTS bot_vectors_shared_idx 
-              ON bot_vectors(shared_scope);
-            
-            -- Create conversation_vectors table
-            CREATE TABLE IF NOT EXISTS conversation_vectors (
-              conversation_id VARCHAR(255) PRIMARY KEY,
-              user_id VARCHAR(255) NOT NULL,
-              title TEXT NOT NULL,
-              title_embedding vector(1024),
-              bot_id VARCHAR(255),
-              last_updated_time BIGINT,
-              message_count INTEGER DEFAULT 0,
-              search_vector tsvector GENERATED ALWAYS AS (
-                to_tsvector('english', coalesce(title, ''))
-              ) STORED,
-              created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-              updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            );
-            
-            -- Indexes for conversation search
-            CREATE INDEX IF NOT EXISTS conversation_vectors_embedding_idx 
-              ON conversation_vectors USING ivfflat (title_embedding vector_cosine_ops) WITH (lists = 100);
-            CREATE INDEX IF NOT EXISTS conversation_vectors_search_idx 
-              ON conversation_vectors USING GIN(search_vector);
-            CREATE INDEX IF NOT EXISTS conversation_vectors_user_idx 
-              ON conversation_vectors(user_id);
-            CREATE INDEX IF NOT EXISTS conversation_vectors_bot_idx 
-              ON conversation_vectors(bot_id);
-          `,
-        },
-        physicalResourceId: PhysicalResourceId.of("InitDatabase"),
-      },
-      policy: AwsCustomResourcePolicy.fromStatements([
-        new iam.PolicyStatement({
-          actions: ["rds-data:ExecuteStatement"],
-          resources: [this.cluster.clusterArn],
-        }),
-        new iam.PolicyStatement({
-          actions: ["secretsmanager:GetSecretValue"],
-          resources: [this.secret.secretArn],
-        }),
-      ]),
     });
 
-    // Wait for cluster to be available before running init
-    initDbFunction.node.addDependency(waitForCluster);
+    // Grant permissions to Lambda
+    initLambda.addToRolePolicy(
+      new iam.PolicyStatement({
+        actions: ["rds-data:ExecuteStatement"],
+        resources: [this.cluster.clusterArn],
+      })
+    );
+    initLambda.addToRolePolicy(
+      new iam.PolicyStatement({
+        actions: ["secretsmanager:GetSecretValue"],
+        resources: [this.secret.secretArn],
+      })
+    );
+
+    // Custom resource provider
+    const provider = new cr.Provider(this, "InitProvider", {
+      onEventHandler: initLambda,
+      logRetention: logs.RetentionDays.ONE_DAY,
+    });
+
+    // Custom resource to trigger database initialization
+    const initResource = new CustomResource(this, "InitDatabase", {
+      serviceToken: provider.serviceToken,
+    });
+
+    // Wait for cluster before init
+    initResource.node.addDependency(this.cluster);
 
     // Outputs
     new CfnOutput(this, "ClusterEndpoint", {
