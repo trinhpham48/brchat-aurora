@@ -29,6 +29,7 @@ import { BedrockCustomBotCodebuild } from "./constructs/bedrock-custom-bot-codeb
 import { BedrockSharedKnowledgeBasesCodebuild } from "./constructs/bedrock-shared-knowledge-bases-codebuild";
 import { BotStore, Language } from "./constructs/bot-store";
 import { Aurora } from "./constructs/aurora";
+import { ConversationExtractorStack } from "./conversation-extractor-stack";
 import { Duration } from "aws-cdk-lib";
 
 export interface BedrockChatStackProps extends StackProps {
@@ -212,6 +213,15 @@ export class BedrockChatStack extends cdk.Stack {
     const aurora = new Aurora(this, "Aurora", {
       enableReplicas: props.enableRagReplicas,
       envPrefix: props.envPrefix,
+    });
+
+    // Conversation Extractor - Extract info from conversations every 8 hours
+    new ConversationExtractorStack(this, "ConversationExtractor", {
+      vpc: aurora.vpc,
+      dbCluster: aurora.cluster,
+      dbSecretArn: aurora.secret.secretArn,
+      conversationTableName: database.conversationTable.tableName,
+      databaseName: "bedrockchat",
     });
 
     // Custom Bot Store - DISABLED, using Aurora instead
