@@ -29,7 +29,7 @@ import { BedrockCustomBotCodebuild } from "./constructs/bedrock-custom-bot-codeb
 import { BedrockSharedKnowledgeBasesCodebuild } from "./constructs/bedrock-shared-knowledge-bases-codebuild";
 import { BotStore, Language } from "./constructs/bot-store";
 import { Aurora } from "./constructs/aurora";
-import { ConversationExtractorStack } from "./conversation-extractor-stack";
+import { ConversationExtractor } from "./conversation-extractor-stack";
 import { Duration } from "aws-cdk-lib";
 
 export interface BedrockChatStackProps extends StackProps {
@@ -216,13 +216,17 @@ export class BedrockChatStack extends cdk.Stack {
     });
 
     // Conversation Extractor - Extract info from conversations every 8 hours
-    new ConversationExtractorStack(this, "ConversationExtractor", {
-      vpc: aurora.vpc,
-      dbCluster: aurora.cluster,
-      dbSecretArn: aurora.secret.secretArn,
-      conversationTableName: database.conversationTable.tableName,
-      databaseName: "bedrockchat",
-    });
+    const conversationExtractor = new ConversationExtractor(
+      this,
+      "ConversationExtractor",
+      {
+        vpc: aurora.vpc,
+        dbCluster: aurora.cluster,
+        dbSecretArn: aurora.secret.secretArn,
+        conversationTableName: database.conversationTable.tableName,
+        databaseName: "bedrockchat",
+      }
+    );
 
     // Custom Bot Store - DISABLED, using Aurora instead
     let botStore = undefined;
@@ -371,6 +375,10 @@ export class BedrockChatStack extends cdk.Stack {
     });
     new CfnOutput(this, 'EmbeddingStateMachineArn', {
       value: embedding.stateMachine.stateMachineArn,
+    });
+    new CfnOutput(this, "ConversationExtractorFunctionName", {
+      value: conversationExtractor.extractorFunction.functionName,
+      exportName: `${props.envPrefix}${sepHyphen}ConversationExtractorFunctionName`,
     });
   }
 }

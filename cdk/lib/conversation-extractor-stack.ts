@@ -7,7 +7,7 @@ import * as iam from "aws-cdk-lib/aws-iam";
 import * as ec2 from "aws-cdk-lib/aws-ec2";
 import * as rds from "aws-cdk-lib/aws-rds";
 
-export interface ConversationExtractorStackProps extends cdk.StackProps {
+export interface ConversationExtractorProps {
   vpc: ec2.IVpc;
   dbCluster: rds.IDatabaseCluster;
   dbSecretArn: string;
@@ -15,16 +15,20 @@ export interface ConversationExtractorStackProps extends cdk.StackProps {
   databaseName: string;
 }
 
-export class ConversationExtractorStack extends cdk.Stack {
+export class ConversationExtractor extends Construct {
+  public readonly extractorFunction: lambda.Function;
+
   constructor(
     scope: Construct,
     id: string,
-    props: ConversationExtractorStackProps
+    props: ConversationExtractorProps
   ) {
-    super(scope, id, props);
+    super(scope, id);
 
     const { vpc, dbCluster, dbSecretArn, conversationTableName, databaseName } =
       props;
+
+    const stack = cdk.Stack.of(this);
 
     // Lambda function
     const extractorFunction = new lambda.Function(
@@ -53,7 +57,7 @@ export class ConversationExtractorStack extends cdk.Stack {
         effect: iam.Effect.ALLOW,
         actions: ["dynamodb:Scan", "dynamodb:Query"],
         resources: [
-          `arn:aws:dynamodb:${this.region}:${this.account}:table/${conversationTableName}`,
+          `arn:aws:dynamodb:${stack.region}:${stack.account}:table/${conversationTableName}`,
         ],
       })
     );
@@ -64,7 +68,7 @@ export class ConversationExtractorStack extends cdk.Stack {
         effect: iam.Effect.ALLOW,
         actions: ["bedrock:InvokeModel"],
         resources: [
-          `arn:aws:bedrock:${this.region}::foundation-model/anthropic.claude-3-5-sonnet-20241022-v2:0`,
+          `arn:aws:bedrock:${stack.region}::foundation-model/anthropic.claude-3-5-sonnet-20241022-v2:0`,
         ],
       })
     );
@@ -100,10 +104,6 @@ export class ConversationExtractorStack extends cdk.Stack {
 
     rule.addTarget(new targets.LambdaFunction(extractorFunction));
 
-    // Outputs
-    new cdk.CfnOutput(this, "ExtractorFunctionName", {
-      value: extractorFunction.functionName,
-      exportName: "ConversationExtractorFunctionName",
-    });
+    this.extractorFunction = extractorFunction;
   }
 }
