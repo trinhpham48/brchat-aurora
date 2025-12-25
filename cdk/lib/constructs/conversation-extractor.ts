@@ -29,9 +29,10 @@ export class ConversationExtractor extends Construct {
     // DynamoDB read
     this.function.addToRolePolicy(
       new iam.PolicyStatement({
-        actions: ["dynamodb:GetItem"],
+        actions: ["dynamodb:GetItem", "dynamodb:Query"],
         resources: [
           `arn:aws:dynamodb:${stack.region}:${stack.account}:table/${props.conversationTableName}`,
+          `arn:aws:dynamodb:${stack.region}:${stack.account}:table/${props.conversationTableName}/index/*`,
         ],
       })
     );

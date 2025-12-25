@@ -18,6 +18,7 @@ bedrock = boto3.client("bedrock-runtime")
 def handler(event, context):
     """Main handler"""
     conversation_id = event.get("conversation_id", "")
+    user_id = event.get("user_id", "")
     
     if not conversation_id:
         return {"statusCode": 400, "body": "Missing conversation_id"}
@@ -25,13 +26,30 @@ def handler(event, context):
     try:
         # Read from DynamoDB
         table = dynamodb.Table(TABLE_NAME)
-        response = table.get_item(Key={"SK": conversation_id})
         
-        if "Item" not in response:
+        # If user_id provided, use composite key
+        if user_id:
+            response = table.get_item(Key={"PK": user_id, "SK": conversation_id})
+        else:
+            # Query by SK (conversation_id) only
+            response = table.query(
+                IndexName="SK-index",
+                KeyConditionExpression="SK = :sk",
+                ExpressionAttributeValues={":sk": conversation_id},
+                Limit=1
+            )
+            if response.get("Items"):
+                item = response["Items"][0]
+            else:
+                return {"statusCode": 404, "body": "Not found"}
+        
+        # Get item from response
+        item = response.get("Item") if user_id else item
+        if not item:
             return {"statusCode": 404, "body": "Not found"}
         
         # Build text from messages
-        messages = response["Item"].get("message_map", {})
+        messages = item.get("message_map", {})
         text = []
         for msg_id in sorted(messages.keys()):
             msg = messages[msg_id]
