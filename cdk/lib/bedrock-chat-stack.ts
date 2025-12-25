@@ -215,16 +215,12 @@ export class BedrockChatStack extends cdk.Stack {
       envPrefix: props.envPrefix,
     });
 
-    // Conversation Extractor - Extract info from conversations every 8 hours
+    // Conversation Extractor - Simple Lambda to extract info from conversations
     const conversationExtractor = new ConversationExtractor(
       this,
       "ConversationExtractor",
       {
-        vpc: aurora.vpc,
-        dbCluster: aurora.cluster,
-        dbSecretArn: aurora.secret.secretArn,
         conversationTableName: database.conversationTable.tableName,
-        databaseName: "bedrockchat",
       }
     );
 

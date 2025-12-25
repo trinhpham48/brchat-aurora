@@ -66,22 +66,6 @@ def handler(event, context):
         "CREATE INDEX IF NOT EXISTS conversation_vectors_search_idx ON conversation_vectors USING GIN(search_vector)",
         "CREATE INDEX IF NOT EXISTS conversation_vectors_user_idx ON conversation_vectors(user_id)",
         "CREATE INDEX IF NOT EXISTS conversation_vectors_bot_idx ON conversation_vectors(bot_id)",
-        """CREATE TABLE IF NOT EXISTS conversation_metadata (
-              id SERIAL PRIMARY KEY,
-              conversation_id VARCHAR(255) UNIQUE NOT NULL,
-              user_id VARCHAR(255) NOT NULL,
-              extracted_name VARCHAR(255),
-              extracted_company VARCHAR(255),
-              extracted_role VARCHAR(255),
-              extracted_contact VARCHAR(255),
-              main_topic TEXT,
-              summary TEXT,
-              extracted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-              created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-              updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )""",
-        "CREATE INDEX IF NOT EXISTS conversation_metadata_conversation_idx ON conversation_metadata(conversation_id)",
-        "CREATE INDEX IF NOT EXISTS conversation_metadata_user_idx ON conversation_metadata(user_id)",
     ]
     
     try:

@@ -1,88 +1,81 @@
-"""
-Lambda Handler - Extract info from conversations using Bedrock
-Runs every 8 hours via EventBridge
-"""
+"""Lambda to extract info from conversations using Bedrock"""
 import json
 import logging
 import os
-from typing import Any, Dict
-
 import boto3
 
-# Setup logging
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
-# Environment variables
-CONVERSATION_TABLE_NAME = os.environ.get("CONVERSATION_TABLE_NAME", "")
-AURORA_CLUSTER_ARN = os.environ.get("AURORA_CLUSTER_ARN", "")
-AURORA_SECRET_ARN = os.environ.get("AURORA_SECRET_ARN", "")
-DATABASE_NAME = os.environ.get("DATABASE_NAME", "bedrockchat")
+CONVERSATION_TABLE = os.environ.get("CONVERSATION_TABLE_NAME", "")
 BEDROCK_MODEL_ID = "anthropic.claude-3-5-sonnet-20241022-v2:0"
 
-# AWS clients
 dynamodb = boto3.resource("dynamodb")
 bedrock = boto3.client("bedrock-runtime")
-rds_data = boto3.client("rds-data")
 
 
-def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
-    """Main Lambda handler"""
+def handler(event, context):
+    """Main handler - extract info from one conversation"""
     logger.info("Starting conversation extraction")
     
+    conversation_id = event.get("conversation_id")
+    if not conversation_id:
+        return {"statusCode": 400, "body": "Missing conversation_id"}
+    
     try:
-        # Get conversations from DynamoDB (simplified for now)
-        table = dynamodb.Table(CONVERSATION_TABLE_NAME)
-        response = table.scan(Limit=10)  # Small batch for testing
+        # Get conversation from DynamoDB
+        table = dynamodb.Table(CONVERSATION_TABLE)
+        response = table.get_item(Key={"SK": conversation_id})
         
-        processed = 0
-        for item in response.get("Items", []):
-            conversation_id = item.get("SK", "")
-            user_id = item.get("PK", "")
-            
-            if not conversation_id or not user_id:
-                continue
-            
-            logger.info(f"Processing: {conversation_id}")
-            
-            # Extract info using Bedrock
-            extracted_info = extract_with_bedrock(item)
-            
-            # Save to Aurora
-            save_to_aurora(conversation_id, user_id, extracted_info)
-            
-            processed += 1
+        if "Item" not in response:
+            return {"statusCode": 404, "body": "Conversation not found"}
+        
+        conversation = response["Item"]
+        logger.info(f"Found conversation: {conversation_id}")
+        
+        # Extract info using Bedrock
+        info = extract_info(conversation)
         
         return {
             "statusCode": 200,
-            "body": json.dumps({"processed": processed})
+            "body": json.dumps({
+                "conversation_id": conversation_id,
+                "extracted_info": info
+            })
         }
         
     except Exception as e:
-        logger.error(f"Error: {str(e)}", exc_info=True)
-        return {
-            "statusCode": 500,
-            "body": json.dumps({"error": str(e)})
-        }
+        logger.error(f"Error: {e}", exc_info=True)
+        return {"statusCode": 500, "body": str(e)}
 
 
-def extract_with_bedrock(conversation: Dict) -> Dict:
+def extract_info(conversation):
     """Extract structured info using Bedrock"""
     messages = conversation.get("message_map", {})
     
-    # Format conversation text
-    conversation_text = format_messages(messages)
+    # Build conversation text
+    texts = []
+    for msg_id in sorted(messages.keys()):
+        msg = messages[msg_id]
+        role = msg.get("role", "user")
+        content = msg.get("content", [])
+        
+        for c in content:
+            if isinstance(c, dict) and "body" in c:
+                texts.append(f"{role.upper()}: {c['body']}")
+    
+    conversation_text = "\n".join(texts[:50])  # Limit length
     
     # Bedrock prompt
-    prompt = f"""Extract from this conversation:
-- name (person's name)
-- company (organization name)
-- role (job title)
-- contact (email or phone)
-- topic (main topic)
-- summary (brief summary)
+    prompt = f"""Analyze this conversation and extract:
+- name: person's full name
+- company: organization/company name
+- role: job title or position
+- contact: email or phone number
+- topic: main discussion topic
+- summary: brief conversation summary
 
-Return ONLY valid JSON.
+Return ONLY valid JSON format.
 
 Conversation:
 {conversation_text}
@@ -105,52 +98,18 @@ JSON:"""
         text = result["content"][0]["text"]
         
         # Parse JSON from response
-        return json.loads(text.strip())
+        extracted = json.loads(text.strip())
+        logger.info(f"Extracted: {extracted}")
+        return extracted
         
     except Exception as e:
-        logger.warning(f"Bedrock extraction failed: {e}")
-        return {}
+        logger.warning(f"Extraction failed: {e}")
+        return {
+            "name": "",
+            "company": "",
+            "role": "",
+            "contact": "",
+            "topic": "",
+            "summary": ""
+        }
 
-
-def format_messages(messages: Dict) -> str:
-    """Format message map to text"""
-    texts = []
-    for msg_id, msg in messages.items():
-        role = msg.get("role", "user")
-        content = msg.get("content", [])
-        for c in content:
-            if isinstance(c, dict) and "body" in c:
-                texts.append(f"{role.upper()}: {c['body']}")
-    return "\n".join(texts[:20])  # Limit length
-
-
-def save_to_aurora(conversation_id: str, user_id: str, info: Dict) -> None:
-    """Save extracted info to Aurora"""
-    sql = """
-    INSERT INTO conversation_metadata 
-    (conversation_id, user_id, extracted_name, extracted_company, 
-     extracted_role, extracted_contact, main_topic, summary)
-    VALUES (:cid, :uid, :name, :company, :role, :contact, :topic, :summary)
-    ON CONFLICT (conversation_id) DO NOTHING
-    """
-    
-    try:
-        rds_data.execute_statement(
-            resourceArn=AURORA_CLUSTER_ARN,
-            secretArn=AURORA_SECRET_ARN,
-            database=DATABASE_NAME,
-            sql=sql,
-            parameters=[
-                {"name": "cid", "value": {"stringValue": conversation_id}},
-                {"name": "uid", "value": {"stringValue": user_id}},
-                {"name": "name", "value": {"stringValue": info.get("name", "") or ""}},
-                {"name": "company", "value": {"stringValue": info.get("company", "") or ""}},
-                {"name": "role", "value": {"stringValue": info.get("role", "") or ""}},
-                {"name": "contact", "value": {"stringValue": info.get("contact", "") or ""}},
-                {"name": "topic", "value": {"stringValue": info.get("topic", "") or ""}},
-                {"name": "summary", "value": {"stringValue": info.get("summary", "") or ""}},
-            ]
-        )
-        logger.info(f"Saved to Aurora: {conversation_id}")
-    except Exception as e:
-        logger.error(f"Aurora save failed: {e}")
