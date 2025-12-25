@@ -35,9 +35,9 @@ BEDROCK_MODEL_ID = os.environ.get(
 MIN_IDLE_HOURS = 8
 MAX_IDLE_HOURS = 16
 BATCH_SIZE = 200
-def handler(event: Dict, c
-@logger.inject_lambda_context
-def handler(event: Dict, context: LambdaContext) -> Dict:
+
+
+def handler(event: Dict, context) -> Dict:
     """
     Main Lambda handler - Extract conversation information
     
