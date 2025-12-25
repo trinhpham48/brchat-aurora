@@ -3,12 +3,12 @@ Bedrock Extractor - Extract structured information from conversations
 """
 
 import json
+import logging
 from typing import Dict, List
 
 import boto3
-from aws_lambda_powertools import Logger
 
-logger = Logger(child=True)
+logger = logging.getLogger(__name__)
 
 
 class ConversationExtractor:

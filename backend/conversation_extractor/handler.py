@@ -12,15 +12,15 @@ from datetime import datetime
 from typing import Dict, List, Optional
 
 import boto3
-from aws_lambda_powertools import Logger, Tracer
-from aws_lambda_powertools.utilities.typing import LambdaContext
 
-from .extractor import ConversationExtractor
-from .repository import AuroraRepository, DynamoDBRepository
+from extractor import ConversationExtractor
+from repository import AuroraRepository, DynamoDBRepository
 
-# Initialize AWS services
-logger = Logger()
-tracer = Tracer()
+# Initialize logging
+import logging
+
+logger = logging.getLogger()
+logger.setLevel(logging.INFO)
 
 # Environment variables
 CONVERSATION_TABLE_NAME = os.environ.get("CONVERSATION_TABLE_NAME", "")
@@ -35,9 +35,7 @@ BEDROCK_MODEL_ID = os.environ.get(
 MIN_IDLE_HOURS = 8
 MAX_IDLE_HOURS = 16
 BATCH_SIZE = 200
-
-
-@tracer.capture_lambda_handler
+def handler(event: Dict, c
 @logger.inject_lambda_context
 def handler(event: Dict, context: LambdaContext) -> Dict:
     """

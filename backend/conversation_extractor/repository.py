@@ -3,13 +3,13 @@ Data Repositories - DynamoDB and Aurora
 """
 
 import json
+import logging
 from datetime import datetime
 from typing import Dict, List, Optional
 
 import boto3
-from aws_lambda_powertools import Logger
 
-logger = Logger(child=True)
+logger = logging.getLogger(__name__)
 
 
 class DynamoDBRepository:
