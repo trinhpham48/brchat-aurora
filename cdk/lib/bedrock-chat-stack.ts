@@ -29,6 +29,7 @@ import { BedrockCustomBotCodebuild } from "./constructs/bedrock-custom-bot-codeb
 import { BedrockSharedKnowledgeBasesCodebuild } from "./constructs/bedrock-shared-knowledge-bases-codebuild";
 import { BotStore, Language } from "./constructs/bot-store";
 import { Aurora } from "./constructs/aurora";
+import { ConversationExtractor } from "./constructs/conversation-extractor";
 import { Duration } from "aws-cdk-lib";
 
 export interface BedrockChatStackProps extends StackProps {
@@ -214,6 +215,15 @@ export class BedrockChatStack extends cdk.Stack {
       envPrefix: props.envPrefix,
     });
 
+    // Conversation Extractor - Extract info from conversations
+    const conversationExtractor = new ConversationExtractor(
+      this,
+      "ConversationExtractor",
+      {
+        conversationTableName: database.conversationTable.tableName,
+      }
+    );
+
     // Custom Bot Store - DISABLED, using Aurora instead
     let botStore = undefined;
     // if (props.enableBotStore) {
@@ -361,6 +371,10 @@ export class BedrockChatStack extends cdk.Stack {
     });
     new CfnOutput(this, 'EmbeddingStateMachineArn', {
       value: embedding.stateMachine.stateMachineArn,
+    });
+    new CfnOutput(this, "ConversationExtractorFunctionName", {
+      value: conversationExtractor.function.functionName,
+      exportName: `${props.envPrefix}${sepHyphen}ConversationExtractorFunction`,
     });
   }
 }
