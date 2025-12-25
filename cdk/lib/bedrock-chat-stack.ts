@@ -362,5 +362,17 @@ export class BedrockChatStack extends cdk.Stack {
     new CfnOutput(this, 'EmbeddingStateMachineArn', {
       value: embedding.stateMachine.stateMachineArn,
     });
+
+    // Conversation Information Extractor
+    new ConversationExtractorStack(this, "ConversationExtractor", {
+      vpc: aurora.vpc,
+      conversationTableName: database.conversationTable.tableName,
+      conversationTableArn: database.conversationTable.tableArn,
+      auroraClusterArn: aurora.cluster.clusterArn,
+      auroraSecretArn: aurora.secret.secretArn,
+      databaseName: aurora.databaseName,
+      bedrockModelId: "anthropic.claude-3-5-sonnet-20241022-v2:0",
+      envPrefix: props.envPrefix,
+    });
   }
 }
