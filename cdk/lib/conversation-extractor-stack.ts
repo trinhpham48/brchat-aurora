@@ -27,7 +27,7 @@ export class ConversationExtractor extends Construct {
       {
         runtime: lambda.Runtime.PYTHON_3_12,
         handler: "handler.handler",
-        code: lambda.Code.fromAsset("../backend/conversation_extractor"),
+        code: lambda.Code.fromAsset("lambda/conversation-extractor"),
         timeout: cdk.Duration.minutes(5),
         memorySize: 256,
         environment: {
