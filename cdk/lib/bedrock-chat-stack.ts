@@ -30,6 +30,7 @@ import { BedrockSharedKnowledgeBasesCodebuild } from "./constructs/bedrock-share
 import { BotStore, Language } from "./constructs/bot-store";
 import { Aurora } from "./constructs/aurora";
 import { Duration } from "aws-cdk-lib";
+import { ConversationExtractorStack } from "./conversation-extractor-stack";
 
 export interface BedrockChatStackProps extends StackProps {
   readonly envName: string;
