@@ -80,7 +80,7 @@ def scan_all_users():
 #
 #     except Exception as e:
 #         logger.error(f"Failed to process user {user_id}: {e}")
-        return 0
+#         return 0
 
 
 # Main function commented out - migrate_user_bots is not implemented
