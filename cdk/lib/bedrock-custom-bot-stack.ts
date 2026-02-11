@@ -2,7 +2,7 @@ import { CfnOutput, RemovalPolicy, Stack, StackProps } from "aws-cdk-lib";
 import { Construct } from "constructs";
 import * as s3 from "aws-cdk-lib/aws-s3";
 import * as iam from "aws-cdk-lib/aws-iam";
-import { BedrockFoundationModel } from "@cdklabs/generative-ai-cdk-constructs/lib/cdk-lib/bedrock";
+import { BedrockFoundationModel, VectorStoreType } from "@cdklabs/generative-ai-cdk-constructs/lib/cdk-lib/bedrock";
 import { ChunkingStrategy } from "@cdklabs/generative-ai-cdk-constructs/lib/cdk-lib/bedrock/data-sources/chunking";
 import { S3DataSource } from "@cdklabs/generative-ai-cdk-constructs/lib/cdk-lib/bedrock/data-sources/s3-data-source";
 import {
@@ -166,12 +166,15 @@ export class BedrockCustomBotStack extends Stack {
         ]),
       });
 
-      const executionRoleArn = getKnowledgeBase.getResponseField("roleArn");
-
-      // Import existing knowledge base (could be S3 or OpenSearch)
+      const executionRoleArn = getKnowledgeBase.getResponseField("knowledgeBase.roleArn");
+      
+      // Get storage configuration type from the existing knowledge base
+      // This could be OPENSEARCH_SERVERLESS, RDS, PINECONE, etc.
+      // Default to OPENSEARCH_SERVERLESS for legacy KBs
       const kb = VectorKnowledgeBase.fromKnowledgeBaseAttributes(this, "MyKnowledgeBase", {
         knowledgeBaseId: props.existKnowledgeBaseId,
         executionRoleArn: executionRoleArn,
+        vectorStoreType: VectorStoreType.OPENSEARCH_SERVERLESS, // Legacy existing KBs
       });
       new CfnOutput(this, "KnowledgeBaseId", {
         value: kb.knowledgeBaseId,
