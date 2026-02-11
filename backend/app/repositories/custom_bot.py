@@ -105,12 +105,12 @@ def store_bot(custom_bot: BotModel):
             description=custom_bot.description or "",
             instruction=custom_bot.instruction or "",
             owner_user_id=custom_bot.owner_user_id,
-            create_time=custom_bot.create_time,
-            last_used_time=custom_bot.last_used_time or custom_bot.create_time,
+            create_time=int(custom_bot.create_time),
+            last_used_time=int(custom_bot.last_used_time or custom_bot.create_time),
             sync_status=custom_bot.sync_status,
-            is_public=custom_bot.is_public,
-            shared_bot_ids=custom_bot.shared_bot_ids,
-            is_pinned=custom_bot.is_pinned,
+            is_public=custom_bot.shared_scope == "all",
+            shared_bot_ids=custom_bot.allowed_cognito_users if custom_bot.shared_scope == "partial" else None,
+            is_pinned=custom_bot.is_pinned(),
         )
     except Exception as e:
         logger.warning(f"Failed to sync bot to Aurora (non-fatal): {e}")

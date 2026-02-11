@@ -218,13 +218,13 @@ class AuroraClient:
                 {"name": "title_embedding", "value": {"stringValue": embedding_str}},
                 {
                     "name": "bot_id",
-                    "value": {"stringValue": bot_id} if bot_id else {"isNull": True},
+                    "value": {"stringValue": bot_id} if bot_id else {"isNull": "true"},
                 },
                 {
                     "name": "last_updated_time",
                     "value": {"longValue": last_updated_time}
                     if last_updated_time
-                    else {"isNull": True},
+                    else {"isNull": "true"},
                 },
                 {"name": "message_count", "value": {"longValue": message_count}},
             ]
