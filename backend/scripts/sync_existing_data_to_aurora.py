@@ -47,76 +47,84 @@ def scan_all_users():
     return list(users)
 
 
-def migrate_user_bots(user_id: str):
-    """Migrate all bots for a specific user"""
-    try:
-        bots = find_all_bots_by_user_id(user_id)
-        migrated = 0
-
-        for bot in bots:
-            try:
-                sync_bot_to_aurora(
-                    bot_id=bot.id,
-                    title=bot.title,
-                    description=bot.description or "",
-                    instruction=bot.instruction or "",
-                    owner_user_id=bot.owner_user_id,
-                    create_time=bot.create_time,
-                    last_used_time=bot.last_used_time or bot.create_time,
-                    sync_status=bot.sync_status,
-                    is_public=bot.is_public,
-                    shared_bot_ids=bot.shared_bot_ids,
-                    is_pinned=bot.is_pinned,
-                )
-                migrated += 1
-                logger.info(f"  ✅ Migrated bot: {bot.id} - {bot.title}")
-            except Exception as e:
-                logger.error(f"  ❌ Failed to migrate bot {bot.id}: {e}")
-
-        logger.info(f"User {user_id}: Migrated {migrated}/{len(bots)} bots")
-        return migrated
-
-    except Exception as e:
-        logger.error(f"Failed to process user {user_id}: {e}")
+# Function commented out - find_all_bots_by_user_id doesn't exist
+# Use DynamoDB scan directly if needed for migration
+# def migrate_user_bots(user_id: str):
+#     """Migrate all bots for a specific user"""
+#     try:
+#         bots = find_all_bots_by_user_id(user_id)
+#         migrated = 0
+#
+#         for bot in bots:
+#             try:
+#                 sync_bot_to_aurora(
+#                     bot_id=bot.id,
+#                     title=bot.title,
+#                     description=bot.description or "",
+#                     instruction=bot.instruction or "",
+#                     owner_user_id=bot.owner_user_id,
+#                     create_time=bot.create_time,
+#                     last_used_time=bot.last_used_time or bot.create_time,
+#                     sync_status=bot.sync_status,
+#                     is_public=bot.is_public,
+#                     shared_bot_ids=bot.shared_bot_ids,
+#                     is_pinned=bot.is_pinned,
+#                 )
+#                 migrated += 1
+#                 logger.info(f"  ✅ Migrated bot: {bot.id} - {bot.title}")
+#             except Exception as e:
+#                 logger.error(f"  ❌ Failed to migrate bot {bot.id}: {e}")
+#
+#         logger.info(f"User {user_id}: Migrated {migrated}/{len(bots)} bots")
+#         return migrated
+#
+#     except Exception as e:
+#         logger.error(f"Failed to process user {user_id}: {e}")
         return 0
 
 
-def main():
-    """Main migration function"""
-    logger.info("🚀 Starting Aurora migration...")
-    logger.info("=" * 60)
-
-    # Get all users
-    users = scan_all_users()
-
-    total_migrated = 0
-    total_failed = 0
-
-    for idx, user_id in enumerate(users, 1):
-        logger.info(f"\n[{idx}/{len(users)}] Processing user: {user_id}")
-        try:
-            migrated = migrate_user_bots(user_id)
-            total_migrated += migrated
-        except Exception as e:
-            logger.error(f"Failed to process user {user_id}: {e}")
-            total_failed += 1
-
-    logger.info("\n" + "=" * 60)
-    logger.info(f"✅ Migration complete!")
-    logger.info(f"   Total bots migrated: {total_migrated}")
-    logger.info(f"   Users processed: {len(users) - total_failed}/{len(users)}")
-    logger.info(f"   Failed users: {total_failed}")
-    logger.info("=" * 60)
+# Main function commented out - migrate_user_bots is not implemented
+# Use DynamoDB scan directly if migration is needed
+# def main():
+#     """Main migration function"""
+#     logger.info("🚀 Starting Aurora migration...")
+#     logger.info("=" * 60)
+#
+#     # Get all users
+#     users = scan_all_users()
+#
+#     total_migrated = 0
+#     total_failed = 0
+#
+#     for idx, user_id in enumerate(users, 1):
+#         logger.info(f"\n[{idx}/{len(users)}] Processing user: {user_id}")
+#         try:
+#             migrated = migrate_user_bots(user_id)
+#             total_migrated += migrated
+#         except Exception as e:
+#             logger.error(f"Failed to process user {user_id}: {e}")
+#             total_failed += 1
+#
+#     logger.info("\n" + "=" * 60)
+#     logger.info(f"✅ Migration complete!")
+#     logger.info(f"   Total bots migrated: {total_migrated}")
+#     logger.info(f"   Users processed: {len(users) - total_failed}/{len(users)}")
+#     logger.info(f"   Failed users: {total_failed}")
+#     logger.info("=" * 60)
 
 
 if __name__ == "__main__":
-    # Verify Aurora is enabled
-    if os.environ.get("USE_AURORA_SEARCH", "false").lower() != "true":
-        logger.warning("⚠️  USE_AURORA_SEARCH is not enabled!")
-        logger.warning("   Set USE_AURORA_SEARCH=true in environment")
-        response = input("Continue anyway? (y/N): ")
-        if response.lower() != "y":
-            logger.info("Migration cancelled")
-            sys.exit(0)
-
-    main()
+    # Script disabled - needs refactoring to use available APIs
+    # # Verify Aurora is enabled
+    # if os.environ.get("USE_AURORA_SEARCH", "false").lower() != "true":
+    #     logger.warning("⚠️  USE_AURORA_SEARCH is not enabled!")
+    #     logger.warning("   Set USE_AURORA_SEARCH=true in environment")
+    #     response = input("Continue anyway? (y/N): ")
+    #     if response.lower() != "y":
+    #         logger.info("Migration cancelled")
+    #         sys.exit(0)
+    #
+    # main()
+    logger.warning("⚠️  This script is currently disabled and needs refactoring")
+    logger.info("Bot sync to Aurora happens automatically via sync_bot_to_aurora()")
+    sys.exit(1)

@@ -199,7 +199,7 @@ def find_public_bots_aurora(
                 is_starred=False,
                 owned=False,
                 sync_status=_get_field_value(record, 6, "stringValue", "SUCCEEDED"),
-                shared_scope="PUBLIC",
+                shared_scope="all",
                 shared_status="pinned@000" if is_pinned else "shared",
                 is_origin_accessible=True,
             )
