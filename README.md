@@ -106,7 +106,10 @@ A comprehensive workshop is available [here](https://catalog.us-east-1.prod.work
 
 ### Supported regions
 
-Please make sure that you deploy Bedrock Chat in a region [where OpenSearch Serverless and Ingestion APIs are available](https://docs.aws.amazon.com/general/latest/gr/opensearch-service.html), if you want to use bots and create knowledge bases (OpenSearch Serverless is the default choice). As of August 2025, the following regions are supported: us-east-1, us-east-2, us-west-1, us-west-2, ap-south-1, ap-northeast-1, ap-northeast-2, ap-southeast-1, ap-southeast-2, ca-central-1, eu-central-1, eu-west-1, eu-west-2, eu-south-2, eu-north-1, sa-east-1
+You can deploy Bedrock Chat in any region [where Amazon Bedrock is available](https://docs.aws.amazon.com/general/latest/gr/bedrock.html). Knowledge Bases now use S3 managed vector store, which is available in all Bedrock regions.
+
+> [!NOTE]
+> We've migrated from OpenSearch Serverless to S3 managed vector store, saving ~$330-500/month while maintaining the same functionality. See [MIGRATION_S3_VECTOR.md](./MIGRATION_S3_VECTOR.md) for details.
 
 For the **bedrock-region** parameter you need to choose a region [where Bedrock is available](https://docs.aws.amazon.com/general/latest/gr/bedrock.html).
 
@@ -211,7 +214,8 @@ It's an architecture built on AWS managed services, eliminating the need for inf
 - [Amazon Bedrock Knowledge Bases](https://aws.amazon.com/bedrock/knowledge-bases/): Provides a managed interface for Retrieval-Augmented Generation ([RAG](https://aws.amazon.com/what-is/retrieval-augmented-generation/)), offering services for embedding and parsing documents
 - [Amazon EventBridge Pipes](https://aws.amazon.com/eventbridge/pipes/): Receiving deletion event of bots from DynamoDB stream and delete CloudFormation stack related to the bot
 - [AWS Step Functions](https://aws.amazon.com/step-functions/): Orchestrating ingestion pipeline to embed external knowledge into Bedrock Knowledge Bases
-- [Amazon OpenSearch Serverless](https://aws.amazon.com/opensearch-service/features/serverless/): Serves as the backend database for Bedrock Knowledge Bases, providing full-text search and vector search capabilities, enabling accurate retrieval of relevant information
+- [Amazon S3](https://aws.amazon.com/s3/): Managed vector store for Bedrock Knowledge Bases, providing semantic search capabilities for RAG (Retrieval-Augmented Generation)
+- [Amazon Aurora PostgreSQL](https://aws.amazon.com/rds/aurora/): Bot Store database with pgvector for bot search and discovery (replaces OpenSearch Bot Store, saving ~$250-400/month)
 - [Amazon Athena](https://aws.amazon.com/athena/): Query service to analyze S3 bucket
 
 ![](docs/imgs/arch.png)
@@ -566,16 +570,15 @@ By default, newly created users will be joined to the `CreatingBotAllowed` group
 
 ### Configure RAG Replicas
 
-`enableRagReplicas` is an option in [cdk.json](./cdk/cdk.json) that controls the replica settings for the RAG database, specifically the Knowledge Bases using Amazon OpenSearch Serverless.
+> [!IMPORTANT]
+> **DEPRECATED**: As of v3.1+, this setting is no longer used. Knowledge Bases now use S3 managed vector store which automatically handles replication across availability zones.
 
-- **Default**: true
-- **true**: Enhances availability by enabling additional replicas, making it suitable for production environments but increasing costs.
-- **false**: Reduces costs by using fewer replicas, making it suitable for development and testing.
+`enableRagReplicas` was previously used to control replica settings for OpenSearch Serverless. With the migration to S3 managed vector store:
+- **Cost savings**: ~$330-500/month (no OCU charges)
+- **Automatic HA**: S3 automatically replicates across AZs
+- **No configuration needed**: AWS Bedrock manages all infrastructure
 
-This is an account/region-level setting, affecting the entire application rather than individual bots.
-
-> [!Note]
-> As of June 2024, Amazon OpenSearch Serverless supports 0.5 OCU, lowering entry costs for small-scale workloads. Production deployments can start with 2 OCUs, while dev/test workloads can use 1 OCU. OpenSearch Serverless automatically scales based on workload demands. For more detail, visit [announcement](https://aws.amazon.com/jp/about-aws/whats-new/2024/06/amazon-opensearch-serverless-entry-cost-half-collection-types/).
+You can safely remove this setting from [cdk.json](./cdk/cdk.json), though it will be ignored if present for backward compatibility.
 
 ### Configure Bot Store
 
@@ -593,8 +596,8 @@ The bot store feature allows users to share and discover custom bots. You can co
 
 - **enableBotStore**: Controls whether the bot store feature is enabled (default: `true`)
 - **botStoreLanguage**: Sets the primary language for bot search and discovery (default: `"en"`). This affects how bots are indexed and searched in the bot store, optimizing text analysis for the specified language.
-- **enableBotStoreReplicas**: Controls whether standby replicas are enabled for the OpenSearch Serverless collection used by bot store (default: `false`). Setting it to `true` improves availability but increases costs, while `false` reduces costs but may affect availability.
-  > **Important**: You can't update this property after the collection is already created. If you attempt to modify this property, the collection continues to use the original value.
+- **enableBotStoreReplicas**: **DEPRECATED** - Bot Store now uses Aurora PostgreSQL (not OpenSearch), which automatically handles replication. This setting is ignored.
+  > **Note**: Bot Store has been migrated from OpenSearch Serverless to Aurora PostgreSQL, saving ~$250-400/month. See [MIGRATION_AURORA.md](./MIGRATION_AURORA.md) for details.
 
 ### Cross-region and Global inference
 
