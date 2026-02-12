@@ -2,6 +2,7 @@
 Conversation Search using Aurora PostgreSQL
 Replaces OpenSearch for conversation search
 """
+
 import logging
 from typing import Optional
 from app.repositories.aurora_client import get_aurora_client

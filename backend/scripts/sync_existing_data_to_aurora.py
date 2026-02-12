@@ -7,6 +7,7 @@ Usage:
     cd backend
     poetry run python scripts/sync_existing_data_to_aurora.py
 """
+
 import sys
 import os
 
@@ -14,6 +15,7 @@ import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 import logging
+
 # from app.repositories.custom_bot import find_all_bots_by_user_id  # Function doesn't exist
 from app.repositories.bot_store_aurora import sync_bot_to_aurora
 from app.repositories.common import get_bot_table_client

@@ -6,6 +6,7 @@ from app.repositories.bot_store import (
     find_bots_sorted_by_usage_count,
     find_random_bots,
 )
+
 # Import Aurora-based search
 from app.repositories.bot_store_aurora import (
     find_bots_by_query_aurora,
@@ -36,7 +37,7 @@ def search_bots(
         # Fallback to OpenSearch
         logger.info(f"Using OpenSearch for query: {query}")
         bots = find_bots_by_query(query, user, limit=limit)
-    
+
     bot_metas = []
     for bot in bots:
         bot_metas.append(bot.to_output())
@@ -56,7 +57,7 @@ def fetch_popular_bots(
         bots = find_public_bots_aurora(limit=limit)
     else:
         bots = find_bots_sorted_by_usage_count(user, limit=limit)
-    
+
     bot_metas = []
     for bot in bots:
         bot_metas.append(bot.to_output())
@@ -76,7 +77,7 @@ def fetch_pickup_bots(
         bots = find_public_bots_aurora(limit=limit, only_pinned=False)
     else:
         bots = find_random_bots(user, limit=limit)
-    
+
     bot_metas = []
     for bot in bots:
         bot_metas.append(bot.to_output())

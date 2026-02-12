@@ -2,6 +2,7 @@
 Bot Store repository using Aurora PostgreSQL
 Replaces OpenSearch for bot search and discovery
 """
+
 import logging
 from typing import Optional
 from app.repositories.models.custom_bot import BotMeta
@@ -264,7 +265,9 @@ def sync_bot_to_aurora(
             sync_status=sync_status,
             shared_scope=shared_scope,
             is_pinned=is_pinned,
-            allowed_users=shared_bot_ids if (shared_scope == "SHARED" and shared_bot_ids) else [],
+            allowed_users=(
+                shared_bot_ids if (shared_scope == "SHARED" and shared_bot_ids) else []
+            ),
         )
 
         logger.info(f"✅ Synced bot {bot_id} to Aurora")

@@ -95,10 +95,11 @@ def store_bot(custom_bot: BotModel):
 
     response = table.put_item(Item=item)
     logger.info(f"Stored bot: {custom_bot.id} successfully")
-    
+
     # Sync to Aurora for search
     try:
         from app.repositories.bot_store_aurora import sync_bot_to_aurora
+
         sync_bot_to_aurora(
             bot_id=custom_bot.id,
             title=custom_bot.title,
@@ -109,12 +110,16 @@ def store_bot(custom_bot: BotModel):
             last_used_time=int(custom_bot.last_used_time or custom_bot.create_time),
             sync_status=custom_bot.sync_status,
             is_public=custom_bot.shared_scope == "all",
-            shared_bot_ids=custom_bot.allowed_cognito_users if custom_bot.shared_scope == "partial" else None,
+            shared_bot_ids=(
+                custom_bot.allowed_cognito_users
+                if custom_bot.shared_scope == "partial"
+                else None
+            ),
             is_pinned=custom_bot.is_pinned(),
         )
     except Exception as e:
         logger.warning(f"Failed to sync bot to Aurora (non-fatal): {e}")
-    
+
     return response
 
 
