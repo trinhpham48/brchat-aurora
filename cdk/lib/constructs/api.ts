@@ -48,10 +48,10 @@ export interface ApiProps {
   readonly enableBedrockGlobalInference: boolean;
   readonly enableBedrockCrossRegionInference: boolean;
   readonly enableLambdaSnapStart: boolean;
-  // Aurora replaces OpenSearch
-  readonly auroraCluster: rds.DatabaseCluster;
-  readonly auroraSecret: secretsmanager.ISecret;
-  readonly auroraVpc: ec2.IVpc;
+  // Aurora (optional - only if Aurora bot store selected)
+  readonly auroraCluster?: rds.DatabaseCluster;
+  readonly auroraSecret?: secretsmanager.ISecret;
+  readonly auroraVpc?: ec2.IVpc;
   readonly globalAvailableModels?: string[];
   readonly defaultModel?: string;
   readonly titleModel?: string;
@@ -226,10 +226,12 @@ export class Api extends Construct {
     props.usageAnalysis?.resultOutputBucket.grantReadWrite(handlerRole);
     props.usageAnalysis?.ddbBucket.grantRead(handlerRole);
     props.largeMessageBucket.grantReadWrite(handlerRole);
-    
-    // Grant Aurora permissions
-    props.auroraCluster.grantDataApiAccess(handlerRole);
-    props.auroraSecret.grantRead(handlerRole);
+
+    // Grant Aurora permissions (only if Aurora is used)
+    if (props.auroraCluster && props.auroraSecret) {
+      props.auroraCluster.grantDataApiAccess(handlerRole);
+      props.auroraSecret.grantRead(handlerRole);
+    }
 
     const handler = new PythonFunction(this, "HandlerV2", {
       entry: path.join(__dirname, "../../../backend"),
@@ -277,11 +279,11 @@ export class Api extends Construct {
           : "[]",
         DEFAULT_MODEL: props.defaultModel || "",
         TITLE_MODEL: props.titleModel || "",
-        // Aurora replaces OpenSearch
-        AURORA_CLUSTER_ARN: props.auroraCluster.clusterArn,
-        AURORA_SECRET_ARN: props.auroraSecret.secretArn,
-        AURORA_DATABASE_NAME: "bedrockchat",
-        USE_AURORA_SEARCH: "true",
+        // Aurora configuration (only if Aurora bot store selected)
+        AURORA_CLUSTER_ARN: props.auroraCluster?.clusterArn || "",
+        AURORA_SECRET_ARN: props.auroraSecret?.secretArn || "",
+        AURORA_DATABASE_NAME: props.auroraCluster ? "bedrockchat" : "",
+        USE_AURORA_SEARCH: props.auroraCluster ? "true" : "false",
         LOGO_PATH: props.logoPath || "",
         USE_STRANDS: "true",
         AWS_LAMBDA_EXEC_WRAPPER: "/opt/bootstrap",

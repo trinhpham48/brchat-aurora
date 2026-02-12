@@ -75,6 +75,42 @@ export class BedrockChatStack extends cdk.Stack {
     const sepHyphen = props.envPrefix ? "-" : "";
     const idp = identityProvider(props.identityProviders);
 
+    // ========== CloudFormation Parameters - Admin UI Selection ==========
+    const botStoreEngineParam = new cdk.CfnParameter(
+      this,
+      "BotStoreEngine",
+      {
+        type: "String",
+        description:
+          "Bot Store search engine: Aurora PostgreSQL (fast, $30/mo) or OpenSearch Serverless (legacy, $350/mo)",
+        default: "aurora",
+        allowedValues: ["aurora", "opensearch"],
+      }
+    );
+
+    const knowledgeBaseVectorStoreParam = new cdk.CfnParameter(
+      this,
+      "KnowledgeBaseVectorStore",
+      {
+        type: "String",
+        description:
+          "Knowledge Base vector store: S3 Managed (cheap, $10/mo) or OpenSearch Serverless (legacy, $350/mo)",
+        default: "s3",
+        allowedValues: ["s3", "opensearch"],
+      }
+    );
+
+    const useBotStoreAurora = botStoreEngineParam.valueAsString === "aurora";
+    const useKnowledgeBaseS3 =
+      knowledgeBaseVectorStoreParam.valueAsString === "s3";
+
+    // Cost estimates based on selection:
+    // Aurora + S3 = $40/mo (RECOMMENDED)
+    // Aurora + OpenSearch = $390/mo
+    // OpenSearch + S3 = $360/mo
+    // OpenSearch + OpenSearch = $700/mo (original)
+    // ====================================================================
+
     const accessLogBucket = new Bucket(this, "AccessLogBucket", {
       encryption: BucketEncryption.S3_MANAGED,
       blockPublicAccess: BlockPublicAccess.BLOCK_ALL,
@@ -208,23 +244,27 @@ export class BedrockChatStack extends cdk.Stack {
       pointInTimeRecovery: true,
     });
 
-    // Aurora Vector Database for Bot/Conversation Search (replaces OpenSearch)
-    const aurora = new Aurora(this, "Aurora", {
-      enableReplicas: props.enableRagReplicas,
-      envPrefix: props.envPrefix,
-    });
+    // Aurora Vector Database for Bot/Conversation Search
+    // Created only if botStoreEngine=aurora
+    const aurora = useBotStoreAurora
+      ? new Aurora(this, "Aurora", {
+          enableReplicas: props.enableRagReplicas,
+          envPrefix: props.envPrefix,
+        })
+      : undefined;
 
-    // Custom Bot Store - DISABLED, using Aurora instead
+    // OpenSearch Bot Store - Legacy option
+    // Created only if botStoreEngine=opensearch AND enableBotStore=true
     let botStore = undefined;
-    // if (props.enableBotStore) {
-    //   botStore = new BotStore(this, "BotStore", {
-    //     envPrefix: props.envPrefix,
-    //     botTable: database.botTable,
-    //     conversationTable: database.conversationTable,
-    //     language: props.botStoreLanguage,
-    //     enableBotStoreReplicas: props.enableBotStoreReplicas,
-    //   });
-    // }
+    if (!useBotStoreAurora && props.enableBotStore) {
+      botStore = new BotStore(this, "BotStore", {
+        envPrefix: props.envPrefix,
+        botTable: database.botTable,
+        conversationTable: database.conversationTable,
+        language: props.botStoreLanguage,
+        enableBotStoreReplicas: props.enableBotStoreReplicas,
+      });
+    }
 
     const usageAnalysis = new UsageAnalysis(this, "UsageAnalysis", {
       envPrefix: props.envPrefix,
@@ -259,25 +299,27 @@ export class BedrockChatStack extends cdk.Stack {
       enableBedrockCrossRegionInference:
         props.enableBedrockCrossRegionInference,
       enableLambdaSnapStart: props.enableLambdaSnapStart,
-      // Aurora replaces OpenSearch
-      auroraCluster: aurora.cluster,
-      auroraSecret: aurora.secret,
-      auroraVpc: aurora.vpc,
+      // Aurora (optional - only if selected)
+      auroraCluster: aurora?.cluster,
+      auroraSecret: aurora?.secret,
+      auroraVpc: aurora?.vpc,
       globalAvailableModels: props.globalAvailableModels,
       defaultModel: props.defaultModel,
       titleModel: props.titleModel,
       logoPath: props.logoPath,
     });
     props.documentBucket.grantReadWrite(backendApi.handler);
-    
-    // Grant Aurora permissions to Lambda
-    aurora.cluster.grantDataApiAccess(backendApi.handler);
-    aurora.secret.grantRead(backendApi.handler);
-    aurora.connections.allowFrom(
-      backendApi.handler,
-      ec2.Port.tcp(5432),
-      "Allow Lambda to Aurora"
-    );
+
+    // Grant Aurora permissions to Lambda (only if Aurora is used)
+    if (aurora) {
+      aurora.cluster.grantDataApiAccess(backendApi.handler);
+      aurora.secret.grantRead(backendApi.handler);
+      aurora.connections.allowFrom(
+        backendApi.handler,
+        ec2.Port.tcp(5432),
+        "Allow Lambda to Aurora"
+      );
+    }
     
     // REMOVED: OpenSearch Bot Store permissions
     // No longer needed with Aurora backend
