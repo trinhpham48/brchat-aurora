@@ -364,10 +364,8 @@ const BotKbEditPage: React.FC = () => {
     DEFAULT_OPENSEARCH_ANALYZER[i18n.language] ?? 'none'
   );
 
-  const [openSearchParams, setOpenSearchParams] = useState<OpenSearchParams>(
-    DEFAULT_OPENSEARCH_ANALYZER[i18n.language]
-      ? OPENSEARCH_ANALYZER[DEFAULT_OPENSEARCH_ANALYZER[i18n.language]]
-      : OPENSEARCH_ANALYZER['none']
+  const [openSearchParams, setOpenSearchParams] = useState<OpenSearchParams | undefined>(
+    undefined
   );
 
   const analyzerOptions: {
@@ -1320,7 +1318,7 @@ const BotKbEditPage: React.FC = () => {
               return { chunkingStrategy: 'none' };
           }
         })(),
-        openSearch: openSearchParams,
+        ...(openSearchParams && { openSearch: openSearchParams }),
         searchParams: searchParams,
         parsingModel,
         webCrawlingScope,
