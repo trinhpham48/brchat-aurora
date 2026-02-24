@@ -2416,7 +2416,7 @@ const BotKbEditPage: React.FC = () => {
                         )}
                       </div>
                       <div>
-                        {openSearchParams.analyzer?.tokenizer ??
+                        {openSearchParams?.analyzer?.tokenizer ??
                           t(
                             'knowledgeBaseSettings.opensearchAnalyzer.not_specified'
                           )}
@@ -2427,7 +2427,7 @@ const BotKbEditPage: React.FC = () => {
                         )}
                       </div>
                       <div>
-                        {openSearchParams.analyzer?.characterFilters ??
+                        {openSearchParams?.analyzer?.characterFilters ??
                           t(
                             'knowledgeBaseSettings.opensearchAnalyzer.not_specified'
                           )}
@@ -2438,7 +2438,7 @@ const BotKbEditPage: React.FC = () => {
                         )}
                       </div>
                       <div className="grid gap-2">
-                        {openSearchParams.analyzer?.tokenFilters.join(', ') ??
+                        {openSearchParams?.analyzer?.tokenFilters?.join(', ') ??
                           t(
                             'knowledgeBaseSettings.opensearchAnalyzer.not_specified'
                           )}
