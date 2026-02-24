@@ -91,7 +91,7 @@ class WebCrawlingFilters(BaseSchema):
 class BedrockKnowledgeBaseInput(BaseSchema):
     type: Literal["dedicated", "shared"] | None = None
     embeddings_model: type_kb_embeddings_model
-    open_search: OpenSearchParams
+    open_search: OpenSearchParams | None = None  # Optional for S3 managed vector store
     chunking_configuration: (
         DefaultParams
         | FixedSizeParams
@@ -112,7 +112,7 @@ class BedrockKnowledgeBaseInput(BaseSchema):
 class BedrockKnowledgeBaseOutput(BaseSchema):
     type: Literal["dedicated", "shared"] | None = None
     embeddings_model: type_kb_embeddings_model
-    open_search: OpenSearchParams
+    open_search: OpenSearchParams | None = None  # Optional for S3 managed vector store
     chunking_configuration: (
         DefaultParams
         | FixedSizeParams

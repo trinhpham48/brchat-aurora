@@ -52,7 +52,7 @@ export const DEFAULT_BEDROCK_KNOWLEDGEBASE: BedrockKnowledgeBase = {
   knowledgeBaseId: null,
   existKnowledgeBaseId: null,
   embeddingsModel: 'cohere_multilingual_v3',
-  openSearch: OPENSEARCH_ANALYZER['none'],
+  // openSearch: undefined,  // Don't send openSearch for S3 managed vector store
   chunkingConfiguration: {
     chunkingStrategy: 'default'
   },
