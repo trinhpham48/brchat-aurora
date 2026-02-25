@@ -1,14 +1,8 @@
 import { CfnOutput, RemovalPolicy, Stack, StackProps } from "aws-cdk-lib";
 import { Construct } from "constructs";
-import { VectorCollection } from "@cdklabs/generative-ai-cdk-constructs/lib/cdk-lib/opensearchserverless";
-import {
-  Analyzer,
-  VectorIndex,
-} from "@cdklabs/generative-ai-cdk-constructs/lib/cdk-lib/opensearch-vectorindex";
-import { VectorCollectionStandbyReplicas } from "@cdklabs/generative-ai-cdk-constructs/lib/cdk-lib/opensearchserverless";
 import * as s3 from "aws-cdk-lib/aws-s3";
 import * as iam from "aws-cdk-lib/aws-iam";
-import { BedrockFoundationModel, VectorStoreType } from "@cdklabs/generative-ai-cdk-constructs/lib/cdk-lib/bedrock";
+import { BedrockFoundationModel } from "@cdklabs/generative-ai-cdk-constructs/lib/cdk-lib/bedrock";
 import { ChunkingStrategy } from "@cdklabs/generative-ai-cdk-constructs/lib/cdk-lib/bedrock/data-sources/chunking";
 import { S3DataSource } from "@cdklabs/generative-ai-cdk-constructs/lib/cdk-lib/bedrock/data-sources/s3-data-source";
 import {
@@ -50,7 +44,7 @@ interface BedrockCustomBotStackProps extends StackProps {
   readonly ownerUserId: string;
   readonly botId: string;
   readonly bedrockClaudeChatDocumentBucketName: string;
-  readonly enableRagReplicas?: boolean;
+  readonly enableRagReplicas?: boolean; // Note: Not used with S3 vector store
 
   // Knowledge base configuration
   readonly knowledgeBaseType: "dedicated" | "shared" | undefined;
@@ -61,7 +55,7 @@ interface BedrockCustomBotStackProps extends StackProps {
   readonly filenames: string[];
   readonly sourceUrls: string[];
   readonly instruction?: string;
-  readonly analyzer?: Analyzer;
+  readonly analyzer?: any; // Deprecated: Not used with S3 vector store
 
   // Chunking configuration
   readonly chunkingStrategy: ChunkingStrategy;
@@ -87,41 +81,11 @@ export class BedrockCustomBotStack extends Stack {
       if (props.knowledgeBaseType === "dedicated"
         && (docBucketsAndPrefixes.length > 0 || props.sourceUrls.length > 0)
       ) {
-        const vectorCollection = new VectorCollection(this, "VectorCollection", {
-          standbyReplicas:
-            props.enableRagReplicas === true
-              ? VectorCollectionStandbyReplicas.ENABLED
-              : VectorCollectionStandbyReplicas.DISABLED,
-        });
-        const vectorIndex = new VectorIndex(this, "VectorIndex", {
-          collection: vectorCollection,
-          // DO NOT CHANGE THIS VALUE
-          indexName: "bedrock-knowledge-base-default-index",
-          // DO NOT CHANGE THIS VALUE
-          vectorField: "bedrock-knowledge-base-default-vector",
-          vectorDimensions: props.embeddingsModel.vectorDimensions!,
-          precision: "float",
-          distanceType: "l2",
-          mappings: [
-            {
-              mappingField: "AMAZON_BEDROCK_TEXT_CHUNK",
-              dataType: "text",
-              filterable: true,
-            },
-            {
-              mappingField: "AMAZON_BEDROCK_METADATA",
-              dataType: "text",
-              filterable: false,
-            },
-          ],
-          analyzer: props.analyzer,
-        });
-        vectorIndex.node.addDependency(vectorCollection);
-
+        // Using S3 managed vector store (no OpenSearch required)
+        // AWS Bedrock automatically creates and manages the S3 bucket for vectors
         const kb = new VectorKnowledgeBase(this, "KnowledgeBase", {
           embeddingsModel: props.embeddingsModel,
-          vectorStore: vectorCollection,
-          vectorIndex: vectorIndex,
+          // vectorStore and vectorIndex are not specified - AWS Bedrock uses S3 managed store
           instruction: props.instruction,
         });
         new CfnOutput(this, "KnowledgeBaseId", {
@@ -204,8 +168,8 @@ export class BedrockCustomBotStack extends Stack {
 
       const executionRoleArn = getKnowledgeBase.getResponseField("roleArn");
 
+      // Import existing knowledge base (could be S3 or OpenSearch)
       const kb = VectorKnowledgeBase.fromKnowledgeBaseAttributes(this, "MyKnowledgeBase", {
-        vectorStoreType: VectorStoreType.OPENSEARCH_SERVERLESS,
         knowledgeBaseId: props.existKnowledgeBaseId,
         executionRoleArn: executionRoleArn,
       });

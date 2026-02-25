@@ -1,12 +1,6 @@
 import { CfnOutput, Duration, RemovalPolicy, Stack, StackProps } from "aws-cdk-lib";
 import { Construct } from "constructs";
 import * as lambdaNodeJs from 'aws-cdk-lib/aws-lambda-nodejs';
-import { VectorCollection } from "@cdklabs/generative-ai-cdk-constructs/lib/cdk-lib/opensearchserverless";
-import {
-  Analyzer,
-  VectorIndex,
-} from "@cdklabs/generative-ai-cdk-constructs/lib/cdk-lib/opensearch-vectorindex";
-import { VectorCollectionStandbyReplicas } from "@cdklabs/generative-ai-cdk-constructs/lib/cdk-lib/opensearchserverless";
 import * as s3 from "aws-cdk-lib/aws-s3";
 import { BedrockFoundationModel, CustomTransformation } from "@cdklabs/generative-ai-cdk-constructs/lib/cdk-lib/bedrock";
 import { ChunkingStrategy } from "@cdklabs/generative-ai-cdk-constructs/lib/cdk-lib/bedrock/data-sources/chunking";
@@ -62,14 +56,14 @@ export class BedrockSharedKnowledgeBasesStack extends Stack {
 interface BedrockKnowledgeBaseProps {
   // Base configuration
   readonly documentBucket: s3.IBucket;
-  readonly enableRagReplicas?: boolean;
+  readonly enableRagReplicas?: boolean; // Note: Not used with S3 vector store
 
   // Knowledge base configuration
   readonly knowledgeBaseHash: string;
   readonly embeddingsModel: BedrockFoundationModel;
   readonly parsingModel?: BedrockFoundationModel;
   readonly instruction?: string;
-  readonly analyzer?: Analyzer;
+  readonly analyzer?: any; // Deprecated: Not used with S3 vector store
 
   // Chunking configuration
   readonly chunkingStrategy: ChunkingStrategy;
@@ -84,37 +78,9 @@ class SharedKnowledgeBase extends Construct {
   constructor(scope: Construct, id: string, props: BedrockKnowledgeBaseProps) {
     super(scope, id);
 
-    const vectorCollection = new VectorCollection(this, "VectorCollection", {
-      standbyReplicas:
-        props.enableRagReplicas === true
-          ? VectorCollectionStandbyReplicas.ENABLED
-          : VectorCollectionStandbyReplicas.DISABLED,
-    });
-    const vectorIndex = new VectorIndex(this, "VectorIndex", {
-      collection: vectorCollection,
-      // DO NOT CHANGE THIS VALUE
-      indexName: "bedrock-knowledge-base-default-index",
-      // DO NOT CHANGE THIS VALUE
-      vectorField: "bedrock-knowledge-base-default-vector",
-      vectorDimensions: props.embeddingsModel.vectorDimensions!,
-      precision: "float",
-      distanceType: "l2",
-      mappings: [
-        {
-          mappingField: "AMAZON_BEDROCK_TEXT_CHUNK",
-          dataType: "text",
-          filterable: true,
-        },
-        {
-          mappingField: "AMAZON_BEDROCK_METADATA",
-          dataType: "text",
-          filterable: false,
-        },
-      ],
-      analyzer: props.analyzer,
-    });
-    vectorIndex.node.addDependency(vectorCollection);
-
+    // Using S3 managed vector store (no OpenSearch required)
+    // AWS Bedrock automatically creates and manages the S3 bucket for vectors
+    
     const tempBucket = new s3.Bucket(this, 'TempBucket', {
       enforceSSL: true,
       autoDeleteObjects: true,
@@ -131,8 +97,7 @@ class SharedKnowledgeBase extends Construct {
 
     this.kb = new VectorKnowledgeBase(this, "KnowledgeBase", {
       embeddingsModel: props.embeddingsModel,
-      vectorStore: vectorCollection,
-      vectorIndex: vectorIndex,
+      // vectorStore and vectorIndex are not specified - AWS Bedrock uses S3 managed store
       instruction: props.instruction,
     });
     tempBucket.grantReadWrite(this.kb.role);
