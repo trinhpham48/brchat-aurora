@@ -2,6 +2,7 @@
 Bot Store repository using Aurora PostgreSQL
 Replaces OpenSearch for bot search and discovery
 """
+
 import logging
 from typing import Optional
 from app.repositories.models.custom_bot import BotMeta
@@ -121,16 +122,19 @@ def find_bots_by_query_aurora(
         # Parse results
         bots = []
         for record in response.get("records", []):
+            is_pinned = _get_field_value(record, 8, "booleanValue", False)
             bot = BotMeta(
                 id=_get_field_value(record, 0, "stringValue"),
                 title=_get_field_value(record, 1, "stringValue"),
                 description=_get_field_value(record, 2, "stringValue", ""),
                 create_time=_get_field_value(record, 4, "longValue", 0),
                 last_used_time=_get_field_value(record, 5, "longValue", 0),
-                is_pinned=_get_field_value(record, 8, "booleanValue", False),
+                is_starred=False,
                 owned=_get_field_value(record, 3, "stringValue") == user.id,
-                available=True,
                 sync_status=_get_field_value(record, 6, "stringValue", "SUCCEEDED"),
+                shared_scope=_get_field_value(record, 7, "stringValue", "PRIVATE"),
+                shared_status="pinned@000" if is_pinned else "shared",
+                is_origin_accessible=True,
             )
             bots.append(bot)
 
@@ -186,16 +190,19 @@ def find_public_bots_aurora(
 
         bots = []
         for record in response.get("records", []):
+            is_pinned = _get_field_value(record, 7, "booleanValue", False)
             bot = BotMeta(
                 id=_get_field_value(record, 0, "stringValue"),
                 title=_get_field_value(record, 1, "stringValue"),
                 description=_get_field_value(record, 2, "stringValue", ""),
                 create_time=_get_field_value(record, 4, "longValue", 0),
                 last_used_time=_get_field_value(record, 5, "longValue", 0),
-                is_pinned=_get_field_value(record, 7, "booleanValue", False),
+                is_starred=False,
                 owned=False,
-                available=True,
                 sync_status=_get_field_value(record, 6, "stringValue", "SUCCEEDED"),
+                shared_scope="all",
+                shared_status="pinned@000" if is_pinned else "shared",
+                is_origin_accessible=True,
             )
             bots.append(bot)
 
@@ -258,7 +265,9 @@ def sync_bot_to_aurora(
             sync_status=sync_status,
             shared_scope=shared_scope,
             is_pinned=is_pinned,
-            allowed_users=shared_bot_ids if shared_scope == "SHARED" else [],
+            allowed_users=(
+                shared_bot_ids if (shared_scope == "SHARED" and shared_bot_ids) else []
+            ),
         )
 
         logger.info(f"✅ Synced bot {bot_id} to Aurora")

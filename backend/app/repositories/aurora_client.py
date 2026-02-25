@@ -2,6 +2,7 @@
 Aurora PostgreSQL client using RDS Data API
 Supports serverless access without VPC networking
 """
+
 import json
 import logging
 import os
@@ -64,9 +65,7 @@ class AuroraClient:
             logger.error(f"Aurora execute_statement failed: {e}")
             raise
 
-    def batch_execute_statement(
-        self, sql: str, parameter_sets: list[list]
-    ) -> dict:
+    def batch_execute_statement(self, sql: str, parameter_sets: list[list]) -> dict:
         """Execute batch SQL statements"""
         if not self.enabled or not self.client:
             raise RuntimeError("Aurora client not enabled")
@@ -145,9 +144,11 @@ class AuroraClient:
                 {
                     "name": "allowed_users",
                     "value": {
-                        "stringValue": "{" + ",".join(allowed_users) + "}"
-                        if allowed_users
-                        else "{}"
+                        "stringValue": (
+                            "{" + ",".join(allowed_users) + "}"
+                            if allowed_users
+                            else "{}"
+                        )
                     },
                 },
             ]
@@ -218,13 +219,15 @@ class AuroraClient:
                 {"name": "title_embedding", "value": {"stringValue": embedding_str}},
                 {
                     "name": "bot_id",
-                    "value": {"stringValue": bot_id} if bot_id else {"isNull": True},
+                    "value": {"stringValue": bot_id} if bot_id else {"isNull": True},  # type: ignore[dict-item]
                 },
                 {
                     "name": "last_updated_time",
-                    "value": {"longValue": last_updated_time}
-                    if last_updated_time
-                    else {"isNull": True},
+                    "value": (
+                        {"longValue": last_updated_time}
+                        if last_updated_time
+                        else {"isNull": True}
+                    ),  # type: ignore[dict-item]
                 },
                 {"name": "message_count", "value": {"longValue": message_count}},
             ]
